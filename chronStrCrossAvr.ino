@@ -1,4 +1,4 @@
-#include <TM1637.h>
+#include <TM1637Display.h>
 
 #define CLK 5 // display clk port
 #define DIO 4 // display dio port
@@ -10,38 +10,17 @@
 #define screenBrightness 5 // seven segment indicator brightness level 0-6
 #define ratePin 6 // digital pin of rate of fire mode
 
-TM1637 segmentIndicator(CLK, DIO);
-
-void setSegments(byte addr, byte data)
-{
-  segmentIndicator.start();
-  segmentIndicator.writeByte(ADDR_FIXED);
-  segmentIndicator.stop();
-  segmentIndicator.start();
-  segmentIndicator.writeByte(addr|0xc0);
-  segmentIndicator.writeByte(data);
-  segmentIndicator.stop();
-  segmentIndicator.start();
-  segmentIndicator.writeByte(segmentIndicator.Cmd_DispCtrl);
-  segmentIndicator.stop();
-}
+TM1637Display display(CLK, DIO);
 
 void showReady()
 {
-  setSegments(0, 73);
-  setSegments(1, 73);
-  setSegments(2, 73);
-  setSegments(3, 73);
-  delay(100);
+  display.showNumberDec(0);
+  delay(1000);
 }
 
-void showError()
-{
-  setSegments(0, 121);
-  setSegments(1, 80);
-  setSegments(2, 80);
-  setSegments(3, 0);
-  delay(showDelayTime);
+void showError() {
+  display.showNumberDec(9999);
+  delay(100);
 }
 
 // variables block
@@ -67,44 +46,46 @@ void isrOut() { // second interrupt handler
 void setup() {
   attachInterrupt(intFirst, isrEntry, RISING);
   attachInterrupt(intSecond, isrOut, RISING);
-  segmentIndicator.set(screenBrightness);
+  
+  display.setBrightness(screenBrightness);
+
+  Serial.begin(9600);
+  Serial.println("chron_avail");
 }
 
 void loop() {
   showReady();
-  if(digitalRead(ratePin) == LOW) {
+  if(digitalRead(ratePin) == HIGH) {
     if(rateWelcomeFlag == false) {
-      segmentIndicator.display(0, 1);
-      delay(700);
-      segmentIndicator.display(1, 4);
-      delay(700);
-      segmentIndicator.display(2, 8);
-      delay(700);
-      segmentIndicator.display(3, 8);
-      delay(700);
+      display.showNumberDec(1);
+      delay(500);
+      display.showNumberDec(14);
+      delay(500);
+      display.showNumberDec(148);
+      delay(500);
+      display.showNumberDec(1488);
+      delay(500);
+      Serial.println("rate_mode");
       showReady();
       rateWelcomeFlag = true;
     }
     rateBeginning:
-    segmentIndicator.display(0, (int)shotsPerMinute / 1000);
-    segmentIndicator.display(1, (int)shotsPerMinute / 100 % 10);
-    segmentIndicator.display(2, (int)shotsPerMinute / 10 % 10);
-    segmentIndicator.display(3, (int)shotsPerMinute % 10);
+    display.showNumberDec(shotsPerMinute);
+    Serial.println(shotsPerMinute);
     delay(showDelayTime);
     timeEntry = 0;
     timeOut = 0;
-    if(digitalRead(ratePin) == LOW) goto rateBeginning;
+    if(digitalRead(ratePin) == HIGH) goto rateBeginning;
   }
   else {
+    if(rateWelcomeFlag == true) Serial.println("regular_mode");
     rateWelcomeFlag = false;
     shotsPerMinute = 0;
   }
   if(timeEntry > 0) if(timeOut - timeEntry < waitDelay) {
     bulletSpeed = ((float)sensorDistance * 1000000 / (timeOut - timeEntry));
-    segmentIndicator.display(0, (int)bulletSpeed / 1000);
-    segmentIndicator.display(1, (int)bulletSpeed / 100 % 10);
-    segmentIndicator.display(2, (int)bulletSpeed / 10 % 10);
-    segmentIndicator.display(3, (int)bulletSpeed % 10);
+    display.showNumberDec(bulletSpeed);
+    Serial.println(bulletSpeed);
     timeEntry = 0;
     timeOut = 0;
     delay(showDelayTime);
